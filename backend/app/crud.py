@@ -169,7 +169,10 @@ def get_meetings(
         )
 
     if participant:
-        query = query.join(models.Participant).filter(models.Participant.name.ilike(f"%{participant}%"))
+        participant_meeting_ids = select(models.Participant.meeting_id).where(
+            models.Participant.name.ilike(f"%{participant}%")
+        )
+        query = query.filter(models.Meeting.id.in_(participant_meeting_ids))
 
     if date_from:
         query = query.filter(models.Meeting.date >= date_from)

@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback, useMemo } from "react";
 import { Search, Plus, SlidersHorizontal, Loader2, Calendar } from "lucide-react";
 import type { MeetingListItem } from "@/types";
 import { api } from "@/lib/api";
+import { useToast } from "@/context/ToastContext";
 import MeetingTable from "@/components/MeetingTable";
 import CreateMeetingModal from "@/components/CreateMeetingModal";
 
@@ -30,8 +31,10 @@ function getDateRange(filter: DateFilter): { date_from?: string; date_to?: strin
 }
 
 export default function HomePage() {
+  const { showToast } = useToast();
   const [meetings, setMeetings] = useState<MeetingListItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [sortBy, setSortBy] = useState("date_desc");
   const [dateFilter, setDateFilter] = useState<DateFilter>("all");
@@ -54,12 +57,15 @@ export default function HomePage() {
         ...dateRange,
       });
       setMeetings(data);
-    } catch {
-      setMeetings([]);
+      setFetchError(null);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Failed to load meetings";
+      setFetchError(message);
+      showToast(message, "error");
     } finally {
       setLoading(false);
     }
-  }, [debouncedSearch, sortBy, dateRange]);
+  }, [debouncedSearch, sortBy, dateRange, showToast]);
 
   useEffect(() => {
     fetchMeetings();
@@ -126,6 +132,14 @@ export default function HomePage() {
         {loading ? (
           <div className="flex items-center justify-center py-20">
             <Loader2 className="w-8 h-8 text-fireflies-purple animate-spin" />
+          </div>
+        ) : fetchError ? (
+          <div className="text-center py-20">
+            <h3 className="font-display font-semibold text-lg text-fireflies-gray-900 mb-1">Could not load meetings</h3>
+            <p className="text-sm text-fireflies-gray-500 mb-4">{fetchError}</p>
+            <button onClick={fetchMeetings} className="btn-primary">
+              Retry
+            </button>
           </div>
         ) : meetings.length === 0 ? (
           <div className="text-center py-20">
