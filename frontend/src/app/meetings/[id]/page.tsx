@@ -43,6 +43,11 @@ export default function MeetingDetailPage() {
   const playIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const fetchMeeting = useCallback(async () => {
+    if (!meetingId || isNaN(meetingId)) {
+      showToast("Invalid meeting ID", "error");
+      router.push("/");
+      return;
+    }
     try {
       const data = await api.getMeeting(meetingId);
       setMeeting(data);

@@ -1,10 +1,9 @@
 import re
 from datetime import datetime
-from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import or_, select
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, selectinload
 
 from . import models, schemas
 
@@ -61,12 +60,18 @@ def _extract_action_items(segments: list[models.TranscriptSegment]) -> list[sche
 
 def _extract_topics(segments: list[models.TranscriptSegment]) -> list[schemas.TopicCreate]:
     topics: list[schemas.TopicCreate] = []
+    if not segments:
+        return topics
     chunk_size = max(1, len(segments) // 5)
     for i in range(0, len(segments), chunk_size):
         chunk = segments[i : i + chunk_size]
         if not chunk:
             continue
-        preview = chunk[0].text[:60].rsplit(" ", 1)[0] + "..."
+        raw_text = chunk[0].text.strip()
+        if len(raw_text) > 60:
+            preview = raw_text[:60].rsplit(" ", 1)[0] + "..."
+        else:
+            preview = raw_text
         topics.append(
             schemas.TopicCreate(
                 title=preview,
@@ -138,6 +143,20 @@ def parse_transcript_text(text: str) -> list[schemas.TranscriptSegmentCreate]:
                 )
             )
             current_time += 5
+            continue
+
+        if segments:
+            segments[-1].text += " " + line
+        else:
+            segments.append(
+                schemas.TranscriptSegmentCreate(
+                    speaker_name="Unknown",
+                    start_time=current_time,
+                    end_time=current_time + 5,
+                    text=line,
+                )
+            )
+            current_time += 5
 
     return segments
 
@@ -151,8 +170,8 @@ def get_meetings(
     date_to: Optional[datetime] = None,
 ) -> list[models.Meeting]:
     query = db.query(models.Meeting).options(
-        joinedload(models.Meeting.participants),
-        joinedload(models.Meeting.action_items),
+        selectinload(models.Meeting.participants),
+        selectinload(models.Meeting.action_items),
     )
 
     if search:
@@ -193,10 +212,10 @@ def get_meeting(db: Session, meeting_id: int) -> Optional[models.Meeting]:
     return (
         db.query(models.Meeting)
         .options(
-            joinedload(models.Meeting.participants),
-            joinedload(models.Meeting.transcript_segments),
-            joinedload(models.Meeting.action_items),
-            joinedload(models.Meeting.topics),
+            selectinload(models.Meeting.participants),
+            selectinload(models.Meeting.transcript_segments),
+            selectinload(models.Meeting.action_items),
+            selectinload(models.Meeting.topics),
         )
         .filter(models.Meeting.id == meeting_id)
         .first()
@@ -307,7 +326,8 @@ def update_meeting(db: Session, meeting_id: int, meeting_update: schemas.Meeting
         setattr(db_meeting, field, value)
 
     if meeting_update.participants is not None:
-        db.query(models.Participant).filter(models.Participant.meeting_id == meeting_id).delete()
+        db.query(models.Participant).filter(models.Participant.meeting_id == meeting_id).delete(synchronize_session=False)
+        db.expire(db_meeting, ["participants"])
         for i, p in enumerate(meeting_update.participants):
             color = p.avatar_color or AVATAR_COLORS[i % len(AVATAR_COLORS)]
             db.add(models.Participant(meeting_id=meeting_id, name=p.name, email=p.email, avatar_color=color))

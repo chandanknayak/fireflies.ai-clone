@@ -180,21 +180,20 @@ The seeder creates **7 meetings** with full transcripts, AI summaries, action it
 
 To re-seed from scratch, delete `backend/fireflies.db` and restart the backend.
 
-## Deployment
+## Deployment Guide (Railway + Vercel)
 
-### Backend (Railway / Render)
-```bash
-cd backend
-pip install -r requirements.txt
-uvicorn app.main:app --host 0.0.0.0 --port $PORT
-```
+### 1. Deploy Backend on Railway / Render
+1. Deploy `backend` directory. Railway will automatically detect the `Dockerfile` or `requirements.txt`.
+2. Start command: `python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT`
+3. Optional environment variables:
+   - `CORS_ORIGINS`: Set to your Vercel URL (e.g., `https://your-app.vercel.app`) or leave empty (backend dynamically supports all origins via regex).
 
-### Frontend (Vercel)
-```bash
-cd frontend
-npm run build
-# Set NEXT_PUBLIC_API_URL to your deployed backend URL
-```
+### 2. Deploy Frontend on Vercel
+1. Import `frontend` directory on Vercel.
+2. In **Environment Variables** on Vercel, set:
+   - `NEXT_PUBLIC_API_URL` = `https://your-railway-backend.up.railway.app/api`
+3. **Important**: Next.js bakes `NEXT_PUBLIC_` environment variables at **build time**. If you add or update `NEXT_PUBLIC_API_URL`, trigger a **Redeploy** on Vercel so the frontend picks up the new backend URL.
+4. Next.js rewrite fallback automatically proxies `/api/*` to `BACKEND_URL` or `NEXT_PUBLIC_API_URL`.
 
 ## License
 

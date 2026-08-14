@@ -52,6 +52,17 @@ export default function SummaryPanel({ meeting, onSeek, onUpdate }: SummaryPanel
     });
   };
 
+  const handleExport = () => {
+    const element = document.createElement("a");
+    const file = new Blob([`# ${meeting.title}\n\nDate: ${new Date(meeting.date).toLocaleString()}\n\n## Overview\n${meeting.overview}\n\n${meeting.summary}\n\n## Action Items\n${meeting.action_items.map((a) => `- [${a.completed ? "x" : " "}] ${a.title} (${a.assignee || "Unassigned"})`).join("\n")}`], { type: "text/markdown" });
+    element.href = URL.createObjectURL(file);
+    element.download = `${meeting.title.replace(/[^a-z0-9]/gi, "_").toLowerCase()}_summary.md`;
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+    showToast("Summary exported as Markdown");
+  };
+
   return (
     <div className="flex flex-col h-full overflow-y-auto bg-white">
       {/* Fireflies-style summary toolbar */}
@@ -71,11 +82,12 @@ export default function SummaryPanel({ meeting, onSeek, onUpdate }: SummaryPanel
               Copy
             </button>
             <button
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-fireflies-gray-400 cursor-not-allowed"
-              title="Coming Soon"
+              onClick={handleExport}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-fireflies-purple hover:bg-fireflies-purple-light transition-colors"
+              title="Export as Markdown"
             >
               <Share2 className="w-3.5 h-3.5" />
-              Share
+              Export
             </button>
           </div>
         </div>

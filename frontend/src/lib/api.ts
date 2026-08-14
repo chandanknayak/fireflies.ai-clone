@@ -9,18 +9,63 @@ import type {
   TranscriptUpload,
 } from "@/types";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api";
+const getApiBase = (): string => {
+  const envUrl = process.env.NEXT_PUBLIC_API_URL;
+  if (envUrl && envUrl.trim()) {
+    return envUrl.trim().replace(/\/+$/, "");
+  }
+  if (typeof window !== "undefined") {
+    return "/api";
+  }
+  return "http://localhost:8000/api";
+};
 
 async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_BASE}${endpoint}`, {
-    headers: { "Content-Type": "application/json", ...options?.headers },
-    ...options,
-  });
-  if (!res.ok) {
+  const baseUrl = getApiBase();
+  const primaryUrl = endpoint.startsWith("/") ? `${baseUrl}${endpoint}` : `${baseUrl}/${endpoint}`;
+
+  try {
+    const res = await fetch(primaryUrl, {
+      headers: {
+        "Content-Type": "application/json",
+        "bypass-tunnel-reminder": "true",
+        ...options?.headers,
+      },
+      ...options,
+    });
+    if (res.ok) {
+      return await res.json();
+    }
+    // If non-200 status on external URL, try fallback
+    if (baseUrl !== "/api" && typeof window !== "undefined") {
+      const fallbackUrl = endpoint.startsWith("/") ? `/api${endpoint}` : `/api/${endpoint}`;
+      const fallbackRes = await fetch(fallbackUrl, {
+        headers: { "Content-Type": "application/json", ...options?.headers },
+        ...options,
+      });
+      if (fallbackRes.ok) {
+        return await fallbackRes.json();
+      }
+    }
     const error = await res.json().catch(() => ({ detail: "Request failed" }));
     throw new Error(error.detail || `HTTP ${res.status}`);
+  } catch (err) {
+    if (baseUrl !== "/api" && typeof window !== "undefined") {
+      const fallbackUrl = endpoint.startsWith("/") ? `/api${endpoint}` : `/api/${endpoint}`;
+      try {
+        const fallbackRes = await fetch(fallbackUrl, {
+          headers: { "Content-Type": "application/json", ...options?.headers },
+          ...options,
+        });
+        if (fallbackRes.ok) {
+          return await fallbackRes.json();
+        }
+      } catch {
+        // Ignore fallback error and throw original error
+      }
+    }
+    throw err instanceof Error ? err : new Error("Request failed");
   }
-  return res.json();
 }
 
 export const api = {
